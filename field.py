@@ -1,14 +1,19 @@
 import streamlit as st
 import pandas as pd
-from io import StringIO # To simulate CSV reading from string
+from io import StringIO
+import os # To handle file paths and check for existence
 
-# Set page configuration for wider layout
-st.set_page_config(layout="wide")
+# --- Configuration ---
+# Define the directory where processed data will be stored
+PROCESSED_DATA_DIR = "processed_data"
+# Create the directory if it doesn't exist (important for Streamlit Cloud deployment)
+os.makedirs(PROCESSED_DATA_DIR, exist_ok=True)
 
-# --- Dummy Data Generation ---
-# This data is embedded directly for instant loading of the prototype.
-# You can modify these strings to change the dummy data.
+FARMERS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "farmers.parquet")
+BMCS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "bmcs.parquet")
+FIELD_TEAMS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "field_teams.parquet")
 
+# --- Dummy Data Generation (as before, but now to be saved) ---
 FARMERS_CSV_DATA = """
 Farmer_ID,Farmer_Name,Village,District,BMC_ID,Milk_Production_Liters_Daily,Cattle_Count,Women_Empowerment_Flag,Animal_Welfare_Score
 F001,Rajesh Kumar,Nandgaon,Pune,BMC001,15,5,No,4
@@ -48,7 +53,43 @@ FT003,Deepak Yadav,Pune,6,Utilization Efficiency,2025-07-01,BMC003,,80
 FT004,Priya N.,Pune,4,Quality Improvement,2025-06-10,BMC005,,75
 """
 
-# --- KPI Calculation and Analysis Functions ---
+# --- Data Management Function (simulating an offline process) ---
+def generate_and_save_data_as_parquet():
+    """
+    Reads dummy CSV data, converts to DataFrames, and saves them as Parquet files.
+    This function simulates an ETL process that you might run periodically.
+    """
+    farmer_df = pd.read_csv(StringIO(FARMERS_CSV_DATA))
+    bmc_df = pd.read_csv(StringIO(BMCS_CSV_DATA))
+    field_team_df = pd.read_csv(StringIO(FIELD_TEAMS_CSV_DATA))
+
+    # Save to parquet
+    farmer_df.to_parquet(FARMERS_PARQUET_PATH, index=False)
+    bmc_df.to_parquet(BMCS_PARQUET_PATH, index=False)
+    field_team_df.to_parquet(FIELD_TEAMS_PARQUET_PATH, index=False)
+
+    st.success("Dummy data generated and saved as Parquet files!")
+
+# --- Data Loading Function (from Parquet) ---
+@st.cache_data(show_spinner="Loading data from processed files...") # Streamlit's built-in spinner
+def load_processed_data():
+    """
+    Loads data from pre-processed Parquet files.
+    This function is optimized for speed using cached Parquet reads.
+    """
+    try:
+        farmer_df = pd.read_parquet(FARMERS_PARQUET_PATH)
+        bmc_df = pd.read_parquet(BMCS_PARQUET_PATH)
+        field_team_df = pd.read_parquet(FIELD_TEAMS_PARQUET_PATH)
+        return farmer_df, bmc_df, field_team_df
+    except FileNotFoundError:
+        st.error("Processed data files not found. Please run the data generation script first.")
+        return None, None, None
+    except Exception as e:
+        st.error(f"Error loading processed data: {e}")
+        return None, None, None
+
+# --- KPI Calculation and Analysis Functions (remain the same) ---
 
 def analyze_bmcs(bmc_df, farmer_df):
     """
@@ -161,55 +202,63 @@ def generate_actionable_targets(low_bmcs_dict):
                     )
     return action_items
 
-# --- Load Data Directly from Embedded Strings ---
-# Using StringIO to read the string data as if it were a file
-farmer_df = pd.read_csv(StringIO(FARMERS_CSV_DATA))
-bmc_df = pd.read_csv(StringIO(BMCS_CSV_DATA))
-field_team_df = pd.read_csv(StringIO(FIELD_TEAMS_CSV_DATA))
-
-
 # --- Streamlit App Layout ---
 
 st.title("Ksheersagar Dairy Performance Dashboard")
 st.markdown("---")
 
-# Removed the sidebar and file uploaders for instant loading
+# Section to generate dummy processed data if it doesn't exist
+st.sidebar.header("Data Management")
+st.sidebar.info("For faster loading, data is read from pre-processed Parquet files.")
+if not os.path.exists(FARMERS_PARQUET_PATH) or \
+   not os.path.exists(BMCS_PARQUET_PATH) or \
+   not os.path.exists(FIELD_TEAMS_PARQUET_PATH):
+    st.sidebar.warning("Processed data files not found. Click to generate dummy data.")
+    if st.sidebar.button("Generate Dummy Processed Data"):
+        generate_and_save_data_as_parquet()
+        st.experimental_rerun() # Rerun to load the newly generated files
 
-# Main content area
-st.header("Data Overview & KPI Analysis")
+# Load the processed data
+farmer_df, bmc_df, field_team_df = load_processed_data()
 
-# Display loaded dataframes (optional, for verification)
-with st.expander("Show Raw Data Previews"):
-    st.subheader("Farmer Data")
-    st.dataframe(farmer_df.head())
-
-    st.subheader("BMC Data")
-    st.dataframe(bmc_df.head())
-
-    st.subheader("Field Team & Training Data")
-    st.dataframe(field_team_df.head())
-
-st.markdown("---")
-st.header("KPI Performance Analysis")
-
-# Run analysis instantly
-low_performing_bmcs = analyze_bmcs(bmc_df, farmer_df)
-
-if any(not df.empty for df in low_performing_bmcs.values()):
-    st.subheader("Low Performing BMCs Identified:")
-    for kpi, df in low_performing_bmcs.items():
-        if not df.empty:
-            st.write(f"#### {kpi.replace('_', ' ').title()} KPI Concerns:")
-            st.dataframe(df[['BMC_ID', 'BMC_Name', 'District', 'Reason']].set_index('BMC_ID'))
-            st.markdown("---")
+if bmc_df is None:
+    st.error("Could not load data. Please generate dummy data or check file paths.")
 else:
-    st.success("All BMCs are performing well across the defined KPIs based on current data!")
+    # Main content area
+    st.header("Data Overview & KPI Analysis")
 
-st.header("Actionable Insights & Targets for Field Team")
-action_items = generate_actionable_targets(low_performing_bmcs)
+    # Display loaded dataframes (optional, for verification)
+    with st.expander("Show Raw Data Previews"):
+        st.subheader("Farmer Data")
+        st.dataframe(farmer_df.head())
 
-if action_items:
-    for item in action_items:
-        st.markdown(f"- {item}")
-else:
-    st.info("No specific actionable insights or targets to display as all BMCs are performing well.")
+        st.subheader("BMC Data")
+        st.dataframe(bmc_df.head())
+
+        st.subheader("Field Team & Training Data")
+        st.dataframe(field_team_df.head())
+
+    st.markdown("---")
+    st.header("KPI Performance Analysis")
+
+    # Run analysis instantly
+    low_performing_bmcs = analyze_bmcs(bmc_df, farmer_df)
+
+    if any(not df.empty for df in low_performing_bmcs.values()):
+        st.subheader("Low Performing BMCs Identified:")
+        for kpi, df in low_performing_bmcs.items():
+            if not df.empty:
+                st.write(f"#### {kpi.replace('_', ' ').title()} KPI Concerns:")
+                st.dataframe(df[['BMC_ID', 'BMC_Name', 'District', 'Reason']].set_index('BMC_ID'))
+                st.markdown("---")
+    else:
+        st.success("All BMCs are performing well across the defined KPIs based on current data!")
+
+    st.header("Actionable Insights & Targets for Field Team")
+    action_items = generate_actionable_targets(low_performing_bmcs)
+
+    if action_items:
+        for item in action_items:
+            st.markdown(f"- {item}")
+    else:
+        st.info("No specific actionable insights or targets to display as all BMCs are performing well.")
