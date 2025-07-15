@@ -1,37 +1,55 @@
 import streamlit as st
 import pandas as pd
-import time # Import time for a small artificial delay to demonstrate spinner
+from io import StringIO # To simulate CSV reading from string
 
 # Set page configuration for wider layout
 st.set_page_config(layout="wide")
 
-# --- Data Loading Function ---
-@st.cache_data(show_spinner=False) # show_spinner=False because we'll manage our own spinner
-def load_data(uploaded_file, file_type):
-    """
-    Loads data from an uploaded file into a Pandas DataFrame.
-    """
-    if uploaded_file is not None:
-        try:
-            # Simulate a small delay for demonstration of spinner
-            # time.sleep(2)
-            if file_type == "csv":
-                df = pd.read_csv(uploaded_file)
-            elif file_type == "excel":
-                df = pd.read_excel(uploaded_file)
-            else:
-                st.error("Unsupported file type. Please upload a CSV or Excel file.")
-                return None
-            return df
-        except Exception as e:
-            st.error(f"Error loading file: {e}")
-            return None
-    return None
+# --- Dummy Data Generation ---
+# This data is embedded directly for instant loading of the prototype.
+# You can modify these strings to change the dummy data.
+
+FARMERS_CSV_DATA = """
+Farmer_ID,Farmer_Name,Village,District,BMC_ID,Milk_Production_Liters_Daily,Cattle_Count,Women_Empowerment_Flag,Animal_Welfare_Score
+F001,Rajesh Kumar,Nandgaon,Pune,BMC001,15,5,No,4
+F002,Priya Sharma,Lonikand,Pune,BMC002,22,8,Yes,5
+F003,Amit Singh,Shirur,Pune,BMC001,18,6,No,3
+F004,Sunita Devi,Daund,Pune,BMC003,12,4,Yes,4
+F005,Mohan Rao,Bhor,Pune,BMC002,25,9,No,5
+F006,Lakshmi Iyer,Junnar,Pune,BMC004,10,3,Yes,3
+F007,Suresh Patil,Khed,Pune,BMC001,20,7,No,4
+F008,Geeta Reddy,Mawal,Pune,BMC003,17,6,Yes,5
+F009,Vikas Gupta,Mulshi,Pune,BMC002,14,5,No,3
+F010,Anjali Mehta,Indapur,Pune,BMC004,28,10,Yes,4
+F011,Deepak Kumar,Baramati,Pune,BMC005,10,3,No,3
+F012,Ritu Singh,Ambegaon,Pune,BMC005,15,6,Yes,4
+F013,Sandeep Gupta,Velhe,Pune,BMC006,12,4,No,2
+F014,Pooja Sharma,Purandar,Pune,BMC006,18,7,Yes,3
+"""
+
+BMCS_CSV_DATA = """
+BMC_ID,BMC_Name,District,Capacity_Liters,Daily_Collection_Liters,Quality_Fat_Percentage,Quality_SNF_Percentage,Quality_Adulteration_Flag,Quality_Target_Fat,Quality_Target_SNF,Utilization_Target_Percentage,Animal_Welfare_Compliance_Score_BMC,Women_Empowerment_Participation_Rate_BMC,Date
+BMC001,Nandgaon BMC,Pune,1000,750,3.5,8.0,No,3.8,8.2,80,4.0,50,2025-07-15
+BMC002,Lonikand BMC,Pune,1200,800,3.2,7.8,Yes,3.8,8.2,80,4.5,70,2025-07-15
+BMC003,Daund BMC,Pune,800,700,3.9,8.1,No,3.8,8.2,80,4.2,60,2025-07-15
+BMC004,Junnar BMC,Pune,900,600,3.6,7.9,No,3.8,8.2,80,3.8,40,2025-07-15
+BMC005,Baramati BMC,Pune,1100,720,3.1,7.6,No,3.8,8.2,80,3.5,52,2025-07-15
+BMC006,Velhe BMC,Pune,700,450,3.7,8.0,No,3.8,8.2,80,3.0,45,2025-07-15
+BMC001,Nandgaon BMC,Pune,1000,780,3.6,8.1,No,3.8,8.2,80,4.1,55,2025-07-14
+BMC002,Lonikand BMC,Pune,1200,850,3.3,7.9,No,3.8,8.2,80,4.6,75,2025-07-14
+"""
+
+FIELD_TEAMS_CSV_DATA = """
+Team_ID,Team_Leader,District_Coverage,Max_BMC_Coverage,Training_Type,Training_Date,BMC_ID_Trained,Farmer_ID_Trained,Training_Outcome_Score
+FT001,Ravi Kumar,Pune,5,Quality Improvement,2025-06-01,BMC001,,85
+FT002,Sneha Singh,Pune,4,Animal Welfare,2025-05-15,BMC002,F002,90
+FT001,Ravi Kumar,Pune,5,Women Empowerment,2025-06-20,,F004,88
+FT003,Deepak Yadav,Pune,6,Utilization Efficiency,2025-07-01,BMC003,,80
+FT004,Priya N.,Pune,4,Quality Improvement,2025-06-10,BMC005,,75
+"""
 
 # --- KPI Calculation and Analysis Functions ---
 
-# (Keep analyze_bmcs and generate_actionable_targets functions as they were in the previous response)
-# Copy-paste them here from the previous code block to ensure they are present.
 def analyze_bmcs(bmc_df, farmer_df):
     """
     Analyzes BMC data against KPIs and identifies low-performing BMCs.
@@ -143,87 +161,55 @@ def generate_actionable_targets(low_bmcs_dict):
                     )
     return action_items
 
+# --- Load Data Directly from Embedded Strings ---
+# Using StringIO to read the string data as if it were a file
+farmer_df = pd.read_csv(StringIO(FARMERS_CSV_DATA))
+bmc_df = pd.read_csv(StringIO(BMCS_CSV_DATA))
+field_team_df = pd.read_csv(StringIO(FIELD_TEAMS_CSV_DATA))
+
 
 # --- Streamlit App Layout ---
 
 st.title("Ksheersagar Dairy Performance Dashboard")
 st.markdown("---")
 
-st.sidebar.header("Upload Data Files")
-
-farmer_file = None
-bmc_file = None
-field_team_file = None
-
-# Using st.empty() and st.spinner() for better user feedback during file uploads
-with st.sidebar:
-    st.markdown("Upload your data files below:")
-    farmer_file = st.file_uploader("Upload Farmer Data (CSV/Excel)", type=["csv", "xlsx"], key="farmer_uploader")
-    bmc_file = st.file_uploader("Upload BMC Data (CSV/Excel)", type=["csv", "xlsx"], key="bmc_uploader")
-    field_team_file = st.file_uploader("Upload Field Team & Training Data (CSV/Excel)", type=["csv", "xlsx"], key="field_team_uploader")
-
-# Load data with a spinner for visual feedback
-farmer_df = None
-bmc_df = None
-field_team_df = None
-
-if farmer_file or bmc_file or field_team_file:
-    with st.spinner("Loading and processing data..."):
-        # The load_data function is now cached, so subsequent runs should be fast.
-        # The spinner will show during the initial load or if a new file is uploaded.
-        if farmer_file:
-            farmer_df = load_data(farmer_file, "csv" if farmer_file.name.endswith('.csv') else "excel")
-        if bmc_file:
-            bmc_df = load_data(bmc_file, "csv" if bmc_file.name.endswith('.csv') else "excel")
-        if field_team_file:
-            field_team_df = load_data(field_team_file, "csv" if field_team_file.name.endswith('.csv') else "excel")
+# Removed the sidebar and file uploaders for instant loading
 
 # Main content area
 st.header("Data Overview & KPI Analysis")
 
-if bmc_df is None:
-    st.info("Please upload the BMC Data to begin the analysis.")
+# Display loaded dataframes (optional, for verification)
+with st.expander("Show Raw Data Previews"):
+    st.subheader("Farmer Data")
+    st.dataframe(farmer_df.head())
+
+    st.subheader("BMC Data")
+    st.dataframe(bmc_df.head())
+
+    st.subheader("Field Team & Training Data")
+    st.dataframe(field_team_df.head())
+
+st.markdown("---")
+st.header("KPI Performance Analysis")
+
+# Run analysis instantly
+low_performing_bmcs = analyze_bmcs(bmc_df, farmer_df)
+
+if any(not df.empty for df in low_performing_bmcs.values()):
+    st.subheader("Low Performing BMCs Identified:")
+    for kpi, df in low_performing_bmcs.items():
+        if not df.empty:
+            st.write(f"#### {kpi.replace('_', ' ').title()} KPI Concerns:")
+            st.dataframe(df[['BMC_ID', 'BMC_Name', 'District', 'Reason']].set_index('BMC_ID'))
+            st.markdown("---")
 else:
-    # Display loaded dataframes (optional, for verification)
-    with st.expander("Show Raw Data Previews"):
-        if farmer_df is not None:
-            st.subheader("Farmer Data")
-            st.dataframe(farmer_df.head())
-        else:
-            st.info("Farmer Data not uploaded.")
+    st.success("All BMCs are performing well across the defined KPIs based on current data!")
 
-        if bmc_df is not None:
-            st.subheader("BMC Data")
-            st.dataframe(bmc_df.head())
-        else:
-            st.info("BMC Data not uploaded.") # Should not happen here if we are in this else block
+st.header("Actionable Insights & Targets for Field Team")
+action_items = generate_actionable_targets(low_performing_bmcs)
 
-        if field_team_df is not None:
-            st.subheader("Field Team & Training Data")
-            st.dataframe(field_team_df.head())
-        else:
-            st.info("Field Team & Training Data not uploaded.")
-
-    st.markdown("---")
-    st.header("KPI Performance Analysis")
-
-    low_performing_bmcs = analyze_bmcs(bmc_df, farmer_df)
-
-    if any(not df.empty for df in low_performing_bmcs.values()):
-        st.subheader("Low Performing BMCs Identified:")
-        for kpi, df in low_performing_bmcs.items():
-            if not df.empty:
-                st.write(f"#### {kpi.replace('_', ' ').title()} KPI Concerns:")
-                st.dataframe(df[['BMC_ID', 'BMC_Name', 'District', 'Reason']].set_index('BMC_ID'))
-                st.markdown("---")
-    else:
-        st.success("All BMCs are performing well across the defined KPIs based on current data!")
-
-    st.header("Actionable Insights & Targets for Field Team")
-    action_items = generate_actionable_targets(low_performing_bmcs)
-
-    if action_items:
-        for item in action_items:
-            st.markdown(f"- {item}")
-    else:
-        st.info("No specific actionable insights or targets to display as all BMCs are performing well.")
+if action_items:
+    for item in action_items:
+        st.markdown(f"- {item}")
+else:
+    st.info("No specific actionable insights or targets to display as all BMCs are performing well.")
