@@ -1,23 +1,26 @@
 import streamlit as st
 import pandas as pd
+import time # Import time for a small artificial delay to demonstrate spinner
 
 # Set page configuration for wider layout
 st.set_page_config(layout="wide")
 
 # --- Data Loading Function ---
-@st.cache_data # Cache the data loading for faster re-runs if file content doesn't change
+@st.cache_data(show_spinner=False) # show_spinner=False because we'll manage our own spinner
 def load_data(uploaded_file, file_type):
     """
     Loads data from an uploaded file into a Pandas DataFrame.
     """
     if uploaded_file is not None:
         try:
+            # Simulate a small delay for demonstration of spinner
+            # time.sleep(2)
             if file_type == "csv":
                 df = pd.read_csv(uploaded_file)
             elif file_type == "excel":
                 df = pd.read_excel(uploaded_file)
             else:
-                st.error("Unsupported file type.")
+                st.error("Unsupported file type. Please upload a CSV or Excel file.")
                 return None
             return df
         except Exception as e:
@@ -27,6 +30,8 @@ def load_data(uploaded_file, file_type):
 
 # --- KPI Calculation and Analysis Functions ---
 
+# (Keep analyze_bmcs and generate_actionable_targets functions as they were in the previous response)
+# Copy-paste them here from the previous code block to ensure they are present.
 def analyze_bmcs(bmc_df, farmer_df):
     """
     Analyzes BMC data against KPIs and identifies low-performing BMCs.
@@ -138,6 +143,7 @@ def generate_actionable_targets(low_bmcs_dict):
                     )
     return action_items
 
+
 # --- Streamlit App Layout ---
 
 st.title("Ksheersagar Dairy Performance Dashboard")
@@ -145,17 +151,32 @@ st.markdown("---")
 
 st.sidebar.header("Upload Data Files")
 
-# File uploader for Farmer Data
-farmer_file = st.sidebar.file_uploader("Upload Farmer Data (CSV/Excel)", type=["csv", "xlsx"], key="farmer_uploader")
-farmer_df = load_data(farmer_file, "csv" if farmer_file and farmer_file.name.endswith('.csv') else "excel")
+farmer_file = None
+bmc_file = None
+field_team_file = None
 
-# File uploader for BMC Data
-bmc_file = st.sidebar.file_uploader("Upload BMC Data (CSV/Excel)", type=["csv", "xlsx"], key="bmc_uploader")
-bmc_df = load_data(bmc_file, "csv" if bmc_file and bmc_file.name.endswith('.csv') else "excel")
+# Using st.empty() and st.spinner() for better user feedback during file uploads
+with st.sidebar:
+    st.markdown("Upload your data files below:")
+    farmer_file = st.file_uploader("Upload Farmer Data (CSV/Excel)", type=["csv", "xlsx"], key="farmer_uploader")
+    bmc_file = st.file_uploader("Upload BMC Data (CSV/Excel)", type=["csv", "xlsx"], key="bmc_uploader")
+    field_team_file = st.file_uploader("Upload Field Team & Training Data (CSV/Excel)", type=["csv", "xlsx"], key="field_team_uploader")
 
-# File uploader for Field Team & Training Data
-field_team_file = st.sidebar.file_uploader("Upload Field Team & Training Data (CSV/Excel)", type=["csv", "xlsx"], key="field_team_uploader")
-field_team_df = load_data(field_team_file, "csv" if field_team_file and field_team_file.name.endswith('.csv') else "excel")
+# Load data with a spinner for visual feedback
+farmer_df = None
+bmc_df = None
+field_team_df = None
+
+if farmer_file or bmc_file or field_team_file:
+    with st.spinner("Loading and processing data..."):
+        # The load_data function is now cached, so subsequent runs should be fast.
+        # The spinner will show during the initial load or if a new file is uploaded.
+        if farmer_file:
+            farmer_df = load_data(farmer_file, "csv" if farmer_file.name.endswith('.csv') else "excel")
+        if bmc_file:
+            bmc_df = load_data(bmc_file, "csv" if bmc_file.name.endswith('.csv') else "excel")
+        if field_team_file:
+            field_team_df = load_data(field_team_file, "csv" if field_team_file.name.endswith('.csv') else "excel")
 
 # Main content area
 st.header("Data Overview & KPI Analysis")
